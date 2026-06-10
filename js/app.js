@@ -894,20 +894,38 @@ function initAuth() {
     document.getElementById('authStep2').style.display = 'block';
   });
 
-  document.getElementById('btnVerifyCode').addEventListener('click', () => {
+  document.getElementById('btnVerifyCode').addEventListener('click', async () => {
     const code = document.getElementById('codeInput').value.trim();
     if (code.length < 4) { showToast('请输入验证码'); return; }
-    // 模拟验证
-    document.getElementById('authStep2').style.display = 'none';
-    document.getElementById('authStep3').style.display = 'block';
-    // 加载地理圈选项（不设空选项，强制选择）
-    const select = document.getElementById('geoCircleSelect');
-    select.innerHTML = '<option value="" disabled selected>请务必选择你实际居住的小区...</option>' +
-      MOCK_CIRCLES.filter(c => c.type === 'geo').map(c =>
-        `<option value="${c.id}">${c.name}</option>`
-      ).join('');
-    // 渲染头像选择器
-    renderAvatarPicker();
+
+    const phone = document.getElementById('phoneInput').value.trim();
+
+    // 模拟验证码校验（正式上线改为真实验证）
+    // 查一下这个手机号是否已注册
+    let existingUser = null;
+    if (supabaseReady) {
+      existingUser = await dbGetUserByPhone(phone);
+    }
+
+    if (existingUser) {
+      // ====== 老用户：直接登录 ======
+      currentUser = existingUser;
+      localStorage.setItem('fangcheng_user', JSON.stringify(currentUser));
+      closeAuth();
+      updateProfileUI();
+      await refreshAllData();
+      showToast(`👋 欢迎回来，${existingUser.nickname}！`);
+    } else {
+      // ====== 新用户：进入注册流程 ======
+      document.getElementById('authStep2').style.display = 'none';
+      document.getElementById('authStep3').style.display = 'block';
+      const select = document.getElementById('geoCircleSelect');
+      select.innerHTML = '<option value="" disabled selected>请务必选择你实际居住的小区...</option>' +
+        MOCK_CIRCLES.filter(c => c.type === 'geo').map(c =>
+          `<option value="${c.id}">${c.name}</option>`
+        ).join('');
+      renderAvatarPicker();
+    }
   });
 
   document.getElementById('btnCompleteProfile').addEventListener('click', async () => {
@@ -936,16 +954,30 @@ function initAuth() {
         currentUser = created;
       } catch (e) {
         console.error('注册失败:', e);
-        // 如果手机号已存在，尝试查找已有用户
-        showToast('该手机号已注册，正在登录...');
-        return;
+        // 如果手机号已存在，直接查出来登录
+        const existing = await dbGetUserByPhone(phone);
+        if (existing) {
+          currentUser = existing;
+        } else {
+          showToast('❌ 注册失败，请重试');
+          return;
+        }
       }
     } else {
-      // 本地模式
-      currentUser = {
-        id: generateId(),
-        ...userData,
-      };
+      // 本地模式：检查是否已注册过
+      const saved = localStorage.getItem('fangcheng_user');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.phone === phone) {
+          currentUser = parsed;
+          closeAuth();
+          updateProfileUI();
+          await refreshAllData();
+          showToast(`👋 欢迎回来，${parsed.nickname}！`);
+          return;
+        }
+      }
+      currentUser = { id: generateId(), ...userData };
     }
 
     // 自动加入对应的地理圈
@@ -959,9 +991,8 @@ function initAuth() {
     localStorage.setItem('fangcheng_user', JSON.stringify(currentUser));
     closeAuth();
     updateProfileUI();
-    await renderCircleQuickBar();
-    await renderMyCircles();
-    showToast(`🎉 欢迎，${nickname}！`);
+    await refreshAllData();
+    showToast(`🎉 欢迎，${currentUser.nickname}！`);
   });
 }
 

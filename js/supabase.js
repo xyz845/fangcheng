@@ -76,6 +76,21 @@ async function dbGetUser(userId) {
   return data[0] || null;
 }
 
+async function dbGetUserByPhone(phone) {
+  const data = await sbGet('/users?phone=eq.' + encodeURIComponent(phone));
+  if (!data[0]) return null;
+  const u = data[0];
+  return {
+    id: u.id,
+    nickname: u.nickname,
+    avatar: u.avatar,
+    geoCircleId: u.geo_circle_id,
+    geoCircleName: u.geo_circle_name,
+    verified: u.verified,
+    phone: u.phone,
+  };
+}
+
 async function dbCreateUser(user) {
   const data = await sbPost('/users', {
     phone: user.phone,
