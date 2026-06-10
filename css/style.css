@@ -1032,6 +1032,43 @@ body {
   cursor: not-allowed;
 }
 
+/* ========== 帖子详情页 ========== */
+#page-postDetail {
+  background: var(--bg);
+}
+
+#postDetailContent {
+  padding: 0 12px;
+}
+
+#postDetailContent .postCard {
+  margin: 0 0 16px;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+#postDetailContent .postDeleteBtn {
+  top: 0;
+  right: 0;
+}
+
+.postDetailComments {
+  background: white;
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding-top: 8px;
+  min-height: 200px;
+}
+
+.postDetailComments .commentList {
+  padding: 0 16px;
+  max-height: none;
+}
+
+/* 帖子卡片可点击提示 */
+.postCard.clickable {
+  cursor: pointer;
+}
+
 /* ========== 删除按钮 ========== */
 .postDeleteBtn {
   position: absolute;

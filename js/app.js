@@ -29,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initPublish();
   initAuth();
   initMyPostsToggle();
+  initDetailComments();
   refreshAllData();
   checkLoginStatus();
 });
@@ -84,6 +85,7 @@ function switchTab(page) {
   // 关闭子页面
   document.querySelectorAll('.subPage').forEach(p => p.classList.remove('active'));
   currentSubFeature = null;
+  currentDetailPostId = null;
 
   // 切换底部导航高亮
   document.querySelectorAll('.navBtn').forEach(b => b.classList.remove('active'));
@@ -133,6 +135,9 @@ function ensureFeedDelegate(containerId) {
 
   // 一个事件监听器处理所有交互（事件委托）
   container.addEventListener('click', (e) => {
+    // 评论区内的点击不触发跳转
+    if (e.target.closest('.commentSection') || e.target.closest('.commentInputRow')) return;
+
     // 删除按钮
     const delBtn = e.target.closest('.postDeleteBtn');
     if (delBtn) {
@@ -163,6 +168,13 @@ function ensureFeedDelegate(containerId) {
     if (postImg) {
       viewImage(postImg.src);
       return;
+    }
+
+    // 点击帖子卡片空白区域 → 进入详情页
+    const postCard = e.target.closest('.postCard');
+    if (postCard) {
+      const postId = postCard.dataset.postId;
+      if (postId) showPostDetail(postId);
     }
   });
 
@@ -1196,6 +1208,69 @@ async function renderMyCircles() {
       <div class="name">${c.name}</div>
     </div>
   `).join('');
+}
+
+// ========== 帖子详情页（类似微博点开） ==========
+let currentDetailPostId = null;
+
+function showPostDetail(postId) {
+  const post = postsCache.find(p => p.id === postId) || MOCK_POSTS.find(p => p.id === postId);
+  if (!post) return;
+
+  currentDetailPostId = postId;
+  const page = document.getElementById('page-postDetail');
+  const content = document.getElementById('postDetailContent');
+
+  // 渲染帖子内容
+  content.innerHTML = renderPostCard(post);
+
+  // 显示评论区
+  document.getElementById('detailCommentInput').value = '';
+  document.getElementById('detailCommentSubmit').disabled = true;
+
+  page.classList.add('active');
+  document.getElementById('topBarTitle').textContent = '帖子详情';
+
+  // 加载评论
+  loadComments(postId, document.getElementById('detailCommentList'));
+}
+
+function closePostDetail() {
+  document.getElementById('page-postDetail').classList.remove('active');
+  currentDetailPostId = null;
+  const titles = { following: '掌上方城', nearby: '身边动态', hot: '热门推荐', circles: '发现圈子', profile: '我的' };
+  document.getElementById('topBarTitle').textContent = titles[currentPage] || '掌上方城';
+}
+
+// 详情页评论发送
+function initDetailComments() {
+  const input = document.getElementById('detailCommentInput');
+  const btn = document.getElementById('detailCommentSubmit');
+  if (!input || !btn) return;
+
+  input.addEventListener('input', () => { btn.disabled = !input.value.trim(); });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && input.value.trim()) {
+      submitDetailComment();
+    }
+  });
+  btn.addEventListener('click', () => {
+    if (!btn.disabled) submitDetailComment();
+  });
+}
+
+async function submitDetailComment() {
+  const input = document.getElementById('detailCommentInput');
+  const content = input.value.trim();
+  if (!content || !currentDetailPostId) return;
+  if (!currentUser) { showAuth(); return; }
+
+  await submitComment(currentDetailPostId, input);
+  // 重新加载评论
+  loadComments(currentDetailPostId, document.getElementById('detailCommentList'));
+  // 同步更新feed中的评论数
+  const post = postsCache.find(p => p.id === currentDetailPostId);
+  if (post) updatePostCardDOM(currentDetailPostId);
 }
 
 // ========== 我的动态管理 ==========
