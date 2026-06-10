@@ -344,7 +344,9 @@ function renderPostCard(post) {
 
 // 精准更新单个动态卡片（不重建整个列表）
 function updatePostCardDOM(postId) {
-  const post = MOCK_POSTS.find(p => p.id === postId);
+  // 先查缓存，再查模拟数据
+  let post = postsCache.find(p => p.id === postId);
+  if (!post) post = MOCK_POSTS.find(p => p.id === postId);
   if (!post) return;
 
   // 找到所有页面中这个帖子的卡片（可能同时出现在关注和热门页）
