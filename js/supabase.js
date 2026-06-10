@@ -62,6 +62,7 @@ async function sbRpc(fn, params) {
     headers: sbHeaders(),
     body: JSON.stringify(params || {}),
   });
+  if (!res.ok) console.error('RPC ' + fn + ' 失败:', res.status, await res.text().catch(() => ''));
   return res.ok;
 }
 
