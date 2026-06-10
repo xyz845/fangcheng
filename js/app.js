@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initNavigation();
   initPublish();
   initAuth();
+  initMyPostsToggle();
   refreshAllData();
   checkLoginStatus();
 });
@@ -114,6 +115,8 @@ function switchTab(page) {
   if (page === 'profile') {
     updateProfileUI();
     renderMyCircles();
+    const myPostsList = document.getElementById('myPostsList');
+    if (myPostsList && myPostsList.style.display !== 'none') renderMyPosts();
   }
 }
 
@@ -413,30 +416,47 @@ async function handlePostAction(postId, action, btnElement) {
 
   if (action === 'delete') {
     if (!confirm('确定删除这条动态吗？')) return;
-    // 乐观删除：先移除DOM
+
     const card = document.querySelector(`.postCard[data-post-id="${postId}"]`);
-    if (card) card.style.opacity = '0';
-    // 从缓存移除
+    const wasInCache = postsCache.find(p => p.id === postId);
+
+    // 立刻从缓存和DOM移除（无延迟）
     postsCache = postsCache.filter(p => p.id !== postId);
-    // 后台删除
-    dbDeletePost(postId).then(() => {
-      const idx = MOCK_POSTS.findIndex(p => p.id === postId);
-      if (idx >= 0) MOCK_POSTS.splice(idx, 1);
-    }).catch(e => {
-      console.error('删除失败:', e);
-      showToast('❌ 删除失败，请重试');
-      // 失败恢复
-      if (card) card.style.opacity = '1';
-    });
-    setTimeout(() => {
-      if (card && card.parentElement) card.remove();
-      if (postsCache.length === 0) {
-        const feedId = currentPage === 'following' ? 'feedFollowing' : currentPage === 'hot' ? 'feedHot' : 'feedNearby';
-        const c = document.getElementById(feedId);
-        if (c) c.innerHTML = '<div class="emptyHint">📭 还没有动态，快来发第一条吧！</div>';
-      }
-    }, 300);
+    if (card) card.style.opacity = '0';
     showToast('🗑️ 已删除');
+
+    // 后台同步删除
+    try {
+      const ok = await dbDeletePost(postId);
+      if (!ok && wasInCache) {
+        // 恢复
+        postsCache.push(wasInCache);
+        postsCache.sort((a, b) => (b.likes || 0) - (a.likes || 0));
+        throw new Error('服务器删除失败');
+      }
+      // 同步清理 MOCK_POSTS
+      const mockIdx = MOCK_POSTS.findIndex(p => p.id === postId);
+      if (mockIdx >= 0) MOCK_POSTS.splice(mockIdx, 1);
+      // 从界面移除
+      if (card && card.parentElement) card.remove();
+    } catch (e) {
+      console.error('删除失败:', e);
+      showToast('❌ 删除失败，已恢复');
+      if (card) card.style.opacity = '1';
+      // 刷新以恢复正确状态
+      await renderFeed(currentPage === 'following' ? 'following' : currentPage === 'hot' ? 'hot' : 'following');
+      await renderMyPosts();
+    }
+
+    // 更新空状态
+    if (postsCache.length === 0) {
+      const feedId = currentPage === 'following' ? 'feedFollowing' : currentPage === 'hot' ? 'feedHot' : 'feedNearby';
+      const c = document.getElementById(feedId);
+      if (c) c.innerHTML = '<div class="emptyHint">📭 还没有动态，快来发第一条吧！</div>';
+    }
+    // 更新我的动态列表
+    if (card && card.parentElement) setTimeout(() => card.remove(), 150);
+    await renderMyPosts();
     return;
   }
 
@@ -1142,6 +1162,59 @@ async function renderMyCircles() {
       <div class="name">${c.name}</div>
     </div>
   `).join('');
+}
+
+// ========== 我的动态管理 ==========
+async function renderMyPosts() {
+  if (!currentUser) return;
+  const container = document.getElementById('myPostsList');
+  if (!container) return;
+
+  // 从缓存中筛选当前用户的帖子，或者从 Supabase 加载
+  let myPosts;
+  if (supabaseReady) {
+    const all = await dbGetPosts({});
+    myPosts = all.filter(p => p.user.name === currentUser.nickname);
+  } else {
+    myPosts = MOCK_POSTS.filter(p => p.user.name === currentUser.nickname);
+  }
+
+  if (!myPosts || myPosts.length === 0) {
+    container.innerHTML = '<div class="emptyHint" style="padding:12px;">你还没发过动态</div>';
+    return;
+  }
+
+  // 用和 feed 一样的卡片渲染，事件委托已在 init 中绑定
+  const fragment = document.createDocumentFragment();
+  const temp = document.createElement('div');
+  temp.innerHTML = myPosts.map(post => renderPostCard(post)).join('');
+  while (temp.firstChild) fragment.appendChild(temp.firstChild);
+  container.innerHTML = '';
+  container.appendChild(fragment);
+
+  // 更新统计数字
+  document.getElementById('profileStats').innerHTML = `
+    <span>动态 <b>${myPosts.length}</b></span>
+    <span>圈子 <b>${(await getJoinedCircleIds()).length}</b></span>
+    <span>获赞 <b>${myPosts.reduce((s, p) => s + (p.likes || 0), 0)}</b></span>
+  `;
+}
+
+function initMyPostsToggle() {
+  const btn = document.getElementById('btnMyPostsToggle');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    const list = document.getElementById('myPostsList');
+    if (list.style.display === 'none') {
+      list.style.display = 'block';
+      btn.textContent = '收起 ↑';
+      ensureFeedDelegate('myPostsList'); // 注册事件委托
+      await renderMyPosts();
+    } else {
+      list.style.display = 'none';
+      btn.textContent = '展开 ↓';
+    }
+  });
 }
 
 // ========== 子功能页面 ==========
