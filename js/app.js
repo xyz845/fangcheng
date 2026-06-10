@@ -923,35 +923,45 @@ function initAuth() {
 
   document.getElementById('btnVerifyCode').addEventListener('click', async () => {
     const code = document.getElementById('codeInput').value.trim();
-    if (code.length < 4) { showToast('请输入验证码'); return; }
+    if (code.length < 4) { showToast('请输入验证码（至少4位）'); return; }
 
     const phone = document.getElementById('phoneInput').value.trim();
+    const btn = document.getElementById('btnVerifyCode');
+    btn.disabled = true;
+    btn.textContent = '验证中...';
 
-    // 模拟验证码校验（正式上线改为真实验证）
-    // 查一下这个手机号是否已注册
-    let existingUser = null;
-    if (supabaseReady) {
-      existingUser = await dbGetUserByPhone(phone);
-    }
+    try {
+      // 查一下这个手机号是否已注册
+      let existingUser = null;
+      if (supabaseReady) {
+        existingUser = await dbGetUserByPhone(phone);
+      }
 
-    if (existingUser) {
-      // ====== 老用户：直接登录 ======
-      currentUser = existingUser;
-      localStorage.setItem('fangcheng_user', JSON.stringify(currentUser));
-      closeAuth();
-      updateProfileUI();
-      await refreshAllData();
-      showToast(`👋 欢迎回来，${existingUser.nickname}！`);
-    } else {
-      // ====== 新用户：进入注册流程 ======
-      document.getElementById('authStep2').style.display = 'none';
-      document.getElementById('authStep3').style.display = 'block';
-      const select = document.getElementById('geoCircleSelect');
-      select.innerHTML = '<option value="" disabled selected>请务必选择你实际居住的小区...</option>' +
-        MOCK_CIRCLES.filter(c => c.type === 'geo').map(c =>
-          `<option value="${c.id}">${c.name}</option>`
-        ).join('');
-      renderAvatarPicker();
+      if (existingUser) {
+        // ====== 老用户：直接登录 ======
+        currentUser = existingUser;
+        localStorage.setItem('fangcheng_user', JSON.stringify(currentUser));
+        closeAuth();
+        updateProfileUI();
+        await refreshAllData();
+        showToast(`👋 欢迎回来，${existingUser.nickname}！`);
+      } else {
+        // ====== 新用户：进入注册流程 ======
+        document.getElementById('authStep2').style.display = 'none';
+        document.getElementById('authStep3').style.display = 'block';
+        const select = document.getElementById('geoCircleSelect');
+        select.innerHTML = '<option value="" disabled selected>请务必选择你实际居住的小区...</option>' +
+          MOCK_CIRCLES.filter(c => c.type === 'geo').map(c =>
+            `<option value="${c.id}">${c.name}</option>`
+          ).join('');
+        renderAvatarPicker();
+      }
+    } catch (e) {
+      console.error('验证失败:', e);
+      showToast('验证失败，请确认网络连接后重试');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '验证登录';
     }
   });
 
