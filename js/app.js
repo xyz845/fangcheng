@@ -1252,7 +1252,7 @@ function closePostDetail() {
   document.getElementById('topBarTitle').textContent = titles[currentPage] || '掌上方城';
 }
 
-// 详情页评论发送
+// 详情页评论发送 + 返回按钮
 function initDetailComments() {
   const input = document.getElementById('detailCommentInput');
   const btn = document.getElementById('detailCommentSubmit');
@@ -1267,6 +1267,14 @@ function initDetailComments() {
   btn.addEventListener('click', () => {
     if (!btn.disabled) submitDetailComment();
   });
+
+  // 返回按钮——同时绑定 onclick 和 addEventListener 确保可靠
+  const pageEl = document.getElementById('page-postDetail');
+  if (pageEl) {
+    pageEl.querySelectorAll('.backBtn').forEach(backBtn => {
+      backBtn.addEventListener('click', closePostDetail);
+    });
+  }
 }
 
 async function submitDetailComment() {
