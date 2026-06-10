@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>掌上方城</title>
+  <link rel="stylesheet" href="css/style.css">
+  <!-- Supabase SDK 改为动态加载，避免阻塞页面 -->
+</head>
+<body>
+
+<!-- ==================== 主容器 ==================== -->
+<div id="app">
+
+  <!-- ========== 顶部状态栏 ========== -->
+  <header id="topBar">
+    <span id="topBarTitle">掌上方城</span>
+    <button id="btnSearch" class="iconBtn" title="搜索">🔍</button>
+  </header>
+
+  <!-- ========== 页面容器 ========== -->
+  <main id="pageContainer">
+
+    <!-- 1. 关注页（默认首页） -->
+    <section id="page-following" class="page active">
+      <!-- 圈子快选横条 -->
+      <div id="circleQuickBar">
+        <button class="circleQuickBtn active" data-circle="all">📋 全部</button>
+      </div>
+      <!-- 动态列表 -->
+      <div id="feedFollowing" class="feedList"></div>
+    </section>
+
+    <!-- 2. 身边页 -->
+    <section id="page-nearby" class="page">
+      <div id="feedNearby" class="feedList">
+        <div class="emptyHint">📍 开启定位后，可以看到周围邻居的动态</div>
+      </div>
+    </section>
+
+    <!-- 3. 热门页 -->
+    <section id="page-hot" class="page">
+      <div id="feedHot" class="feedList"></div>
+    </section>
+
+    <!-- 4. 圈子页 -->
+    <section id="page-circles" class="page">
+      <div id="circlesContainer">
+        <!-- 搜索框 -->
+        <div id="circleSearchBox">
+          <input type="text" id="circleSearchInput" placeholder="🔍 搜索圈子名称或关键词...">
+        </div>
+        <!-- 分类标签 -->
+        <div id="circleTabs">
+          <button class="circleTab active" data-cat="all">全部</button>
+          <button class="circleTab" data-cat="geo">🏘️ 社区邻里</button>
+          <button class="circleTab" data-cat="hobby">🎯 兴趣爱好</button>
+          <button class="circleTab" data-cat="service">🛠️ 便民服务</button>
+        </div>
+        <!-- 圈子列表 -->
+        <div id="circleList"></div>
+      </div>
+    </section>
+
+    <!-- 5. 我的页 -->
+    <section id="page-profile" class="page">
+      <div id="profileContainer">
+        <!-- 用户信息卡片 -->
+        <div id="profileCard">
+          <div id="profileAvatarWrap" style="position:relative;display:inline-block;cursor:pointer;" onclick="openAvatarEditor()">
+            <div id="profileAvatar">👤</div>
+            <span style="position:absolute;bottom:0;right:0;background:white;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;box-shadow:0 1px 3px rgba(0,0,0,0.2);">📷</span>
+          </div>
+          <div id="profileName">未登录</div>
+          <div id="profileVerified" style="display:none;"></div>
+          <div id="profileBio">方城好邻居</div>
+          <div id="profileStats">
+            <span>动态 <b>0</b></span>
+            <span>圈子 <b>0</b></span>
+            <span>获赞 <b>0</b></span>
+          </div>
+        </div>
+        <!-- 我的圈子 -->
+        <div class="sectionHeader">
+          <span>我的圈子</span>
+          <button class="textBtn" onclick="switchTab('circles')">发现更多 →</button>
+        </div>
+        <div id="myCirclesList" class="miniCircleList"></div>
+        <!-- 功能入口 -->
+        <div class="menuList">
+          <button class="menuItem" onclick="showPage('lost-found')">🔑 失物招领</button>
+          <button class="menuItem" onclick="showPage('contacts')">📞 便民通讯录</button>
+          <button class="menuItem" onclick="showPage('report')">📸 问题上报</button>
+          <button class="menuItem" onclick="showPage('deals')">🏷️ 小城捡便宜</button>
+          <button class="menuItem" onclick="showPage('market')">🔄 闲置流转</button>
+          <button class="menuItem" onclick="showPage('jobs')">💼 小城零工</button>
+          <button class="menuItem" onclick="showPage('carpool')">🚗 拼车信息台</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. 圈子详情页 -->
+    <section id="page-circleDetail" class="page subPage">
+      <div id="circleDetailContent"></div>
+    </section>
+
+    <!-- 7. 子功能页面（失物招领等） -->
+    <section id="page-subFeature" class="page subPage">
+      <div id="subFeatureContent"></div>
+    </section>
+
+  </main>
+
+  <!-- ========== 底部导航栏 ========== -->
+  <nav id="bottomNav">
+    <button class="navBtn active" data-page="following">🏠<span>关注</span></button>
+    <button class="navBtn" data-page="nearby">📍<span>身边</span></button>
+    <button id="btnPublishCenter" class="navBtn publishBtn">➕</button>
+    <button class="navBtn" data-page="circles">💬<span>圈子</span></button>
+    <button class="navBtn" data-page="profile">👤<span>我的</span></button>
+  </nav>
+
+</div>
+
+<!-- ==================== 弹窗层 ==================== -->
+
+<!-- 发布动态弹窗 -->
+<div id="publishModal" class="modal">
+  <div class="modalContent">
+    <div class="modalHeader">
+      <button class="modalClose" onclick="closePublish()">✕</button>
+      <span>分享点啥新鲜事...</span>
+      <button id="btnSubmitPost" class="primaryBtn">发布</button>
+    </div>
+    <textarea id="postContent" placeholder="分享点啥新鲜事..." maxlength="2000"></textarea>
+    <div id="postImagePreview" class="imagePreviewGrid"></div>
+    <div class="postOptions">
+      <button id="btnAddImage" class="optionBtn">📷 添加图片</button>
+      <input type="file" id="imageInput" accept="image/*" multiple hidden>
+      <button id="btnSelectCircle" class="optionBtn">💬 选择圈子 <span id="selectedCircleHint">(必选)</span></button>
+    </div>
+    <!-- 圈子选择器 -->
+    <div id="circleSelector" class="circleSelector" style="display:none;">
+      <div class="selectorTabs">
+        <button class="selTab active" data-type="geo">地理圈</button>
+        <button class="selTab" data-type="hobby">兴趣圈</button>
+        <button class="selTab" data-type="service">事务圈</button>
+      </div>
+      <div id="selectorCircleList" class="selectorList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 登录弹窗 -->
+<div id="authModal" class="modal">
+  <div class="modalContent authContent">
+    <h2>👋 欢迎来到掌上方城</h2>
+    <p>和邻居们一起聊聊方城的大小事</p>
+    <div id="authStep1">
+      <input type="tel" id="phoneInput" placeholder="请输入手机号" maxlength="11">
+      <button id="btnSendCode" class="primaryBtn fullWidth">获取验证码</button>
+    </div>
+    <div id="authStep2" style="display:none;">
+      <input type="text" id="codeInput" placeholder="请输入验证码" maxlength="6">
+      <button id="btnVerifyCode" class="primaryBtn fullWidth">验证登录</button>
+    </div>
+    <div id="authStep3" style="display:none;">
+      <!-- 头像选择 -->
+      <label style="font-size:13px;color:#888;display:block;margin-bottom:6px;">选一个你的头像</label>
+      <div id="avatarPicker" class="avatarPicker"></div>
+      <input type="file" id="avatarImageInput" accept="image/*" hidden>
+      <button id="btnCustomAvatar" class="textBtn" style="margin-bottom:12px;">📷 或上传照片</button>
+      <!-- 昵称 -->
+      <input type="text" id="nicknameInput" placeholder="给自己起个名字">
+      <!-- 社区选择（必选） -->
+      <label style="font-size:13px;color:#e74c3c;display:block;margin-bottom:4px;">* 必须认证你的小区（选后不可修改）</label>
+      <select id="geoCircleSelect">
+        <option value="" disabled selected>请务必选择你实际居住的小区...</option>
+      </select>
+      <p style="font-size:11px;color:#888;margin:-6px 0 10px;">认证后头像将显示"认证邻居"标识，未认证用户无法发帖</p>
+      <button id="btnCompleteProfile" class="primaryBtn fullWidth">完成注册</button>
+    </div>
+    <button class="textBtn" onclick="closeAuth()" style="margin-top:12px;">先看看，稍后登录</button>
+  </div>
+</div>
+
+<!-- Toast 提示 -->
+<div id="toast" class="toast"></div>
+
+<script src="js/data.js"></script>
+<script src="js/supabase.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
