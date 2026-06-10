@@ -145,25 +145,38 @@ async function dbGetUserCircles(userId) {
   return data.map(r => r.circle_id);
 }
 
-// ========== 帖子 ==========
+// ========== 帖子（带缓存） ==========
+const postsCacheStore = { data: null, time: 0, filter: '' };
+const CACHE_TTL = 30000; // 30秒缓存
+
 async function dbGetPosts(options) {
+  const filterKey = (options?.circleId || 'all');
+  const now = Date.now();
+
+  // 缓存命中：30秒内相同条件直接返回
+  if (postsCacheStore.data && postsCacheStore.filter === filterKey && (now - postsCacheStore.time) < CACHE_TTL) {
+    return postsCacheStore.data;
+  }
+
   let path = '/posts?select=*,user:users(id,nickname,avatar,geo_circle_name)&order=created_at.desc&limit=50';
   if (options && options.circleId && options.circleId !== 'all') {
-    // 使用 cs (contains) 操作符匹配 circle_ids JSONB 数组
     path += '&circle_ids=cs.%5B%22' + options.circleId + '%22%5D';
   }
   const data = await sbGet(path);
 
-  // 查询当前用户点赞状态
+  // 查询当前用户点赞状态（用 in 操作符，URL 更短）
   let likedPostIds = new Set();
   if (currentUser?.id && data.length > 0) {
-    const postIds = data.map(p => p.id);
-    const likesParams = postIds.map(id => 'post_id=eq.' + id).join('&');
-    const likes = await sbGet('/post_likes?select=post_id&user_id=eq.' + currentUser.id + '&or=(' + postIds.map(id => 'post_id.eq.' + id).join(',') + ')');
-    likes.forEach(l => likedPostIds.add(l.post_id));
+    const ids = data.map(p => p.id);
+    // 分批次查询，每批30个，避免URL过长
+    for (let i = 0; i < ids.length; i += 30) {
+      const batch = ids.slice(i, i + 30);
+      const likes = await sbGet('/post_likes?select=post_id&user_id=eq.' + currentUser.id + '&post_id=in.(' + batch.join(',') + ')');
+      likes.forEach(l => likedPostIds.add(l.post_id));
+    }
   }
 
-  return data.map(p => ({
+  const result = data.map(p => ({
     id: p.id,
     user: {
       name: p.user?.nickname || '匿名',
@@ -180,6 +193,18 @@ async function dbGetPosts(options) {
     reposts: p.reposts_count || 0,
     liked: likedPostIds.has(p.id),
   }));
+
+  // 存入缓存
+  postsCacheStore.data = result;
+  postsCacheStore.time = now;
+  postsCacheStore.filter = filterKey;
+  return result;
+}
+
+// 清除帖子缓存（点赞、发布、删除后调用）
+function clearPostsCache() {
+  postsCacheStore.data = null;
+  postsCacheStore.time = 0;
 }
 
 async function dbCreatePost(post) {

@@ -389,6 +389,7 @@ async function handlePostAction(postId, action, btnElement) {
         updatePostCardDOM(postId);
         console.error('点赞失败:', e);
       }
+      clearPostsCache(); // 清除缓存，下次切标签重新拉数据
     }
     // 同步更新 MOCK_POSTS
     if (mockPost && mockPost !== post) {
@@ -424,6 +425,7 @@ async function handlePostAction(postId, action, btnElement) {
     postsCache = postsCache.filter(p => p.id !== postId);
     if (card) card.style.opacity = '0';
     showToast('🗑️ 已删除');
+    clearPostsCache();
 
     // 后台同步删除
     try {
@@ -841,6 +843,7 @@ async function submitPost() {
     renderFeedFromCache(currentPage === 'following' ? 'feedFollowing' : 'feedNearby');
   }
   showToast('✅ 发布成功！');
+  clearPostsCache();
 
   // === 后台写入数据库 ===
   try {
