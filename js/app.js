@@ -956,6 +956,23 @@ function closeAuth() {
   document.getElementById('authModal').classList.remove('show');
 }
 
+function logout() {
+  if (!confirm('确定退出登录吗？')) return;
+  currentUser = null;
+  localStorage.removeItem('fangcheng_user');
+  postsCache = [];
+  userLocation = null;
+  // 重置界面
+  document.getElementById('profileName').textContent = '未登录';
+  document.getElementById('profileAvatar').textContent = '👤';
+  document.getElementById('profileBio').textContent = '方城好邻居';
+  document.getElementById('profileVerified').style.display = 'none';
+  document.getElementById('profileStats').innerHTML = '<span>动态 <b>0</b></span><span>圈子 <b>0</b></span><span>获赞 <b>0</b></span>';
+  document.getElementById('myCirclesList').innerHTML = '<div class="emptyHint" style="padding:12px;">登录后查看</div>';
+  renderFeed('following');
+  showToast('👋 已退出登录');
+}
+
 function updateProfileUI() {
   if (!currentUser) return;
   document.getElementById('profileName').textContent = currentUser.nickname;
