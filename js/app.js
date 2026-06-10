@@ -508,10 +508,8 @@ async function submitComment(postId, input) {
   if (!content) return;
   if (!currentUser) { showAuth(); return; }
 
-  // 乐观添加
-  const section = input.closest('.commentSection');
-  const listEl = section.querySelector('.commentList');
-  const tempComment = `
+  // 乐观添加到界面
+  const tempHtml = `
     <div class="commentItem">
       <span class="commentAvatar">${currentUser.avatar}</span>
       <div class="commentBody">
@@ -521,22 +519,34 @@ async function submitComment(postId, input) {
       </div>
     </div>
   `;
-  if (listEl.querySelector('.commentItem')) {
-    listEl.insertAdjacentHTML('beforeend', tempComment);
-  } else {
-    listEl.innerHTML = tempComment;
-  }
-  input.value = '';
-  input.parentElement.querySelector('.commentSubmit').disabled = true;
 
-  // 后台同步
+  // 找到所有相同postId的评论区，全部追加评论
+  document.querySelectorAll(`.commentSection[data-post-id="${postId}"] .commentList`).forEach(listEl => {
+    if (listEl.querySelector('.commentItem')) {
+      listEl.insertAdjacentHTML('beforeend', tempHtml);
+    } else {
+      listEl.innerHTML = tempHtml;
+    }
+  });
+
+  // 清空输入框
+  input.value = '';
+  // 禁用所有相关发送按钮
+  document.querySelectorAll(`.commentSection[data-post-id="${postId}"] .commentSubmit`).forEach(b => b.disabled = true);
+
+  // 乐观更新缓存中的评论计数
+  const post = postsCache.find(p => p.id === postId);
+  if (post) { post.comments = (post.comments || 0) + 1; }
+  // 同步更新所有卡片上的评论数
+  updatePostCardDOM(postId);
+
+  // 后台写入
   try {
-    await dbCreateComment(postId, content);
-    // 更新评论计数
-    const post = postsCache.find(p => p.id === postId);
-    if (post) { post.comments = (post.comments || 0) + 1; updatePostCardDOM(postId); }
+    const result = await dbCreateComment(postId, content);
+    if (!result) throw new Error('评论存储失败');
   } catch (e) {
     console.error('评论失败:', e);
+    showToast('⚠️ 评论暂存本地');
   }
 }
 
@@ -1266,11 +1276,8 @@ async function submitDetailComment() {
   if (!currentUser) { showAuth(); return; }
 
   await submitComment(currentDetailPostId, input);
-  // 重新加载评论
-  loadComments(currentDetailPostId, document.getElementById('detailCommentList'));
-  // 同步更新feed中的评论数
-  const post = postsCache.find(p => p.id === currentDetailPostId);
-  if (post) updatePostCardDOM(currentDetailPostId);
+  // 重新从本地/Supabase加载评论列表（确保同步）
+  await loadComments(currentDetailPostId, document.getElementById('detailCommentList'));
 }
 
 // ========== 我的动态管理 ==========

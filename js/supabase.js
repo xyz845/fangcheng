@@ -271,22 +271,42 @@ async function dbDeletePost(postId) {
 
 // ========== 评论 ==========
 async function dbGetComments(postId) {
-  if (!supabaseReady) return []; // 本地模式暂无评论数据
-  const data = await sbGet('/comments?select=*,user:users(nickname,avatar)&post_id=eq.' + postId + '&order=created_at.asc');
-  return (data || []).map(c => ({
-    id: c.id,
-    user: { name: c.user?.nickname || '匿名', avatar: c.user?.avatar || '👤' },
-    content: c.content,
-    time: timeAgo(c.created_at),
-  }));
+  // 先尝试 Supabase
+  if (supabaseReady) {
+    try {
+      const data = await sbGet('/comments?select=*,user:users(nickname,avatar)&post_id=eq.' + postId + '&order=created_at.asc');
+      if (data && data.length > 0) {
+        return data.map(c => ({
+          id: c.id,
+          user: { name: c.user?.nickname || '匿名', avatar: c.user?.avatar || '👤' },
+          content: c.content,
+          time: timeAgo(c.created_at),
+        }));
+      }
+    } catch (e) { /* 表不存在或其他错误，回退本地 */ }
+  }
+  // 回退本地模拟评论
+  return (MOCK_COMMENTS[postId] || []).slice(-50);
 }
 
 async function dbCreateComment(postId, content) {
-  if (!supabaseReady || !currentUser?.id) return null;
-  const data = await sbPost('/comments', { post_id: postId, user_id: currentUser.id, content });
-  // 更新帖子评论计数
-  await sbRpc('increment_comments', { post_id: postId });
-  return { id: data[0].id, user: { name: currentUser.nickname, avatar: currentUser.avatar }, content, time: '刚刚' };
+  // 先尝试 Supabase
+  if (supabaseReady) {
+    try {
+      const data = await sbPost('/comments', { post_id: postId, user_id: currentUser.id, content });
+      // 更新帖子评论计数
+      try { await sbRpc('increment_comments', { post_id: postId }); } catch {}
+      return { id: data[0]?.id, user: { name: currentUser.nickname, avatar: currentUser.avatar }, content, time: '刚刚' };
+    } catch (e) { /* 表不存在，回退本地 */ }
+  }
+  // 回退：存在本地
+  if (!MOCK_COMMENTS[postId]) MOCK_COMMENTS[postId] = [];
+  const c = { id: 'c_' + Date.now(), user: { name: currentUser?.nickname || '我', avatar: currentUser?.avatar || '👤' }, content, time: '刚刚' };
+  MOCK_COMMENTS[postId].push(c);
+  // 同步更新 MOCK_POSTS 中的评论计数
+  const mockPost = MOCK_POSTS.find(p => p.id === postId);
+  if (mockPost) mockPost.comments = (mockPost.comments || 0) + 1;
+  return c;
 }
 function timeAgo(dateStr) {
   if (!dateStr) return '刚刚';

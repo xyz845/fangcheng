@@ -134,6 +134,9 @@ const MOCK_POSTS = [
   },
 ];
 
+// 模拟评论（当 Supabase 不可用时使用）
+const MOCK_COMMENTS = {}; // { postId: [{ id, user, content, time }] }
+
 // 热门动态（用模拟数据，调整排序）
 const MOCK_HOT_POSTS = [...MOCK_POSTS].sort((a, b) => (b.likes + b.comments) - (a.likes + a.comments));
 
